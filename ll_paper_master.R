@@ -1,9 +1,14 @@
 try(setwd("/Users/pracz/Work/NZILBB/socialpaper2_latest/RaczHayPierrehumbert2019/"))
 try(setwd("~/Github/RaczHayPierrehumbert2019/"))
+
 library(xtable)
 library(lme4)
 library(merTools)
 library(tidyverse)
+library(broom)
+
+set.seed(2017)
+
 options(mc.cores=parallel::detectCores())
 # options(mc.cores=1)
 Sys.setenv(TZ="Europe/Rome") # a szivemben örök tavasz van
@@ -96,6 +101,17 @@ test.sum %>%
   ylab('training trial count')
 ggsave('images/training_plot2.pdf', width = 10, height = 10)
 
+test.sum %>% 
+  ggplot(aes(x = trial.count, y = correct, colour = main.cue)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = F) +
+  xlab('trial count in training') +
+  ylab('mean accuracy in test') +
+  scale_colour_brewer(palette="Set2",
+                    name="Main cue") +
+  ggtitle('Test and training accuracy')
+ggsave('images/training_plot3.pdf', width = 5, height = 5)
+
 test.sum %>%
   gather(cue.type, cue.name, -subject, -correct, -trial.count) %>% 
   mutate(
@@ -131,7 +147,7 @@ test %>%
   # geom_jitter(aes(colour = conv.partner.seen), width = 0.3) +
   geom_point(aes(colour = conv.partner.seen), position = position_jitterdodge()) +
   geom_violin(aes(fill = conv.partner.seen, alpha = 0.5), position = position_dodge(0.75)) +
-  stat_summary(aes(group = conv.partner.seen), fun.y=mean, geom="point", shape=16, size=4, position = position_dodge(0.75)) +
+  stat_summary(aes(group = conv.partner.seen), fun.y=mean, geom="point", shape=16, size=4, position = ) +
   # coord_cartesian(ylim = c(0.35,1)) +
     scale_fill_brewer(palette="Set3",
       name="Conversation\npartner",
@@ -147,6 +163,7 @@ test %>%
   ggtitle("Test: main cue and conversation partner")
 ggsave('images/test_plot2.pdf', width = 11, height = 10)
 
+pj = position_jitter(width = 0.1)
 
 test.sum = test %>% 
   group_by(subject, main.cue, conv.partner.seen) %>% 
@@ -158,8 +175,8 @@ test.sum = test %>%
 test.sum %>% 
   ggplot(aes(x = interaction(conv.partner.seen, main.cue), y = correct)) +
   geom_violin(aes(fill = conv.partner.seen), alpha = 0.5) +
-  geom_point(aes(colour = conv.partner.seen)) +
-  geom_line(aes(group = interaction(id, main.cue)), alpha = 0.5, colour = 'grey') +
+  geom_point(aes(colour = conv.partner.seen), position = pj) +
+  geom_line(aes(group = interaction(id, main.cue)), alpha = 0.5, colour = 'grey', position = pj) +
   stat_summary(aes(group = conv.partner.seen), fun.y=mean, geom="point", shape=16, size=4) +
   scale_fill_brewer(palette="Set3",
                     name="Conversation\npartner",
@@ -173,7 +190,8 @@ test.sum %>%
   ) +
   guides(alpha = F, colour = F) +
   ggtitle("Test: main cue and conversation partner") +
-  scale_x_discrete(labels = rep(levels(test.sum$main.cue), each = 2))
+  scale_x_discrete(labels = rep(levels(test.sum$main.cue), each = 2)) +
+  ylab('mean participant accuracy')
 ggsave('images/test_plot3.pdf', width = 11, height = 10)
 
 test %>% 
@@ -249,8 +267,72 @@ t1 %>% xtable
 # secondary models
 
 fit7 = glm(correct ~ 1 + trial.count * main.cue, family = binomial, data = test)
-summary(fit7)
+confint.default(fit7)
 
 fit8 = glmer(correct ~ 1 + r.main.dist + r.competitor.dist + ( 1 | subject ) + ( 1 | training.partner.pair ), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
 
 fit9 = glmer(correct ~ 1 + r.main.dist * r.competitor.dist + ( 1 | subject ) + ( 1 | training.partner.pair ), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+anova(fit8,fit9)
+summary(fit9)
+anova(fit2,fit9)
+# t1 = test %>% 
+#   do( tidy(t(quantile(.$r.main.dist, probs = seq(0, 1, 0.1)))) ) %>% 
+#   gather(quantile,value) %>% 
+#   mutate(
+#     distance = 'r.main.dist'
+#   )
+
+##########################################
+# test results: group sizes
+##########################################
+
+test.people = test %>% 
+  select(subject, group) %>% 
+  unique()
+
+# min number of people in group
+min.count =  test.people %>% 
+  group_by(group) %>% 
+  summarise(n = n()) %>% 
+  pull(n) %>% 
+  min
+
+# sample other groups down to this size. 
+sample.people = plyr::ddply(test.people, "group" , function(x) x[sample(nrow(x), min.count),])
+sample = test %>% filter(subject %in% sample.people$subject)
+
+# test the conv partner seen : main cue interaction with samples
+runSamples = function(){
+  
+  library(doParallel)
+  registerDoParallel(cores = 4)
+  
+  sample.fits = foreach(i = 1:100) %dopar% {
+    
+    sample.people = plyr::ddply(test.people, "group" , function(x) x[sample(nrow(x), min.count),])
+    sample = test %>% filter(subject %in% sample.people$subject)
+    sample.fit = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + ( 1 | subject), family = binomial, data = sample, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+    summary(sample.fit)$coef
+  }
+  save(sample.fits, file = 'samplefits.rda')
+}
+
+runSamples()
+
+# see how many times z indicates 5%
+load('samplefits.rda')
+viewCPS = as.list(NULL);ageCPS = as.list(NULL);ethnicityCPS = as.list(NULL);genderCPS = as.list(NULL)
+for (i in 1:100){
+fit.summary = sample.fits[[i]]
+  viewCPS[[i]] = fit.summary[rownames(fit.summary) == 'conv.partner.seenTRUE', 3]
+  ageCPS[[i]] = fit.summary[rownames(fit.summary) == 'main.cueAge:conv.partner.seenTRUE', 3]
+  ethnicityCPS[[i]] = fit.summary[rownames(fit.summary) == 'main.cueEthnicity:conv.partner.seenTRUE', 3]
+  genderCPS[[i]] = fit.summary[rownames(fit.summary) == 'main.cueGender:conv.partner.seenTRUE', 3]
+}
+viewCPS = unlist(viewCPS);ageCPS = unlist(ageCPS);ethnicityCPS = unlist(ethnicityCPS);genderCPS = unlist(genderCPS)
+viewCPS[viewCPS > 1.8 | viewCPS < -1.8] %>% length
+ageCPS[ageCPS > 1.8 | ageCPS < -1.8] %>% length
+ethnicityCPS[ethnicityCPS > 1.8 | ethnicityCPS < -1.8] %>% length
+genderCPS[genderCPS > 1.8 | genderCPS < -1.8] %>% length
+sample.fits
