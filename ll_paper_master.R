@@ -51,6 +51,9 @@ test.sum = test %>%
   group_by(subject, trial.count, main.cue, competitor.cue) %>% 
   summarise(correct = mean(na.omit(correct)))
 
+dimsum = d %>% 
+  filter(phase == 'test', cond %in% c('gender (ethnicity)','ethnicity (gender)'))
+
 ##########################################
 # visualisations
 ##########################################
@@ -282,6 +285,11 @@ anova(fit2,fit9)
 #   mutate(
 #     distance = 'r.main.dist'
 #   )
+
+fit10 = glmer(correct ~ 1 + cond * pattern + ( 1 | subject ), family = binomial, data = dimsum, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit10b = glmer(correct ~ 1 + cond + pattern + ( 1 | subject ), family = binomial, data = dimsum, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit10c = glmer(correct ~ 1 + cond  + ( 1 | subject ), family = binomial, data = dimsum, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+anova(fit10b,fit10c)
 
 ##########################################
 # test results: group sizes
