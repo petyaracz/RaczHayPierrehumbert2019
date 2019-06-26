@@ -1,8 +1,13 @@
-setwd("/Users/pracz/Work/NZILBB/socialpaper2_latest/RaczHayPierrehumbert2019/")
-library(tidyverse)
+try(setwd("/Users/pracz/Work/NZILBB/socialpaper2_latest/RaczHayPierrehumbert2019/"))
+try(setwd("~/Github/RaczHayPierrehumbert2019/"))
 library(xtable)
 library(lme4)
-library(effects)
+library(merTools)
+library(tidyverse)
+options(mc.cores=parallel::detectCores())
+# options(mc.cores=1)
+Sys.setenv(TZ="Europe/Rome") # a szivemben örök tavasz van
+
 load('paper2data_tidy.rda')
 set.seed(0211)
 
@@ -15,27 +20,24 @@ d = d %>% filter(kill == F) # slow participants
 
 # training trial counts per participant
 training = d %>% 
-  filter(phase == 'training') %>% 
-  group_by(subject, cond, pattern, main.cue, competitor.cue, age, gender) %>% 
+  filter(phase == 'training', pattern == 'dim') %>% 
+  group_by(subject, cond, main.cue, competitor.cue, age, gender) %>% 
   summarise(trial.count = n()) %>% 
   ungroup()
 
 # test phase, with trial count per subject
-test = d %>% 
-  filter(phase == 'test') %>% 
-  inner_join(training[,c('subject', 'trial.count')]) %>% 
-  mutate(item.seen = as.factor(item.seen))
+perc.distance$training.partner.pair = with(perc.distance, paste(training, main.cue, competitor.cue))
 
-# test phase, with perceptual distances, diminutive pattern only
-dim.test = test %>% 
-  filter(pattern == 'dim') %>% 
-  select(subject, correct) %>% 
-  inner_join(perc.distance)
+test = d %>% 
+  filter(phase == 'test', pattern == 'dim') %>% 
+  inner_join(training[,c('subject', 'trial.count')]) %>% 
+  inner_join(perc.distance[,c('subject', 'training.partner.pair', 'r.main.dist', 'r.competitor.dist')]) %>% 
+  mutate(item.seen = as.factor(item.seen))
 
 # training summary
 
 training.sum = training %>%
-  select(subject, trial.count, main.cue, competitor.cue) %>% 
+  select(main.cue, competitor.cue, subject, trial.count) %>% 
   gather(cue.type, cue.name, -subject, -trial.count)
 
 # test summary
@@ -71,7 +73,28 @@ training.sum %>%
     ) +
     ylab('participant trial count') +
     ggtitle('Training phase')
-ggsave('training_plot1.pdf', width = 10, height = 10, device = cairo_pdf())
+ggsave('images/training_plot1.pdf', width = 10, height = 10)
+
+test.sum %>% 
+  group_by(main.cue) %>% 
+  mutate(
+    above.average = ifelse(correct > mean(correct), 'above test mean', 'below test mean')
+  ) %>% 
+  ggplot(aes(x = above.average, y = trial.count)) + 
+  geom_jitter(aes(colour = main.cue), width = 0.3) +
+  geom_violin(aes(fill = main.cue, alpha = 0.5)) +
+  stat_summary(fun.y=mean, geom="point", shape=16, size=4) +
+  scale_fill_brewer(palette="Set2") +
+  scale_colour_brewer(palette="Set2") +
+  facet_wrap( ~ main.cue) +
+  theme(
+    text = element_text(size=30), 
+    axis.text.x = element_text(angle=90, vjust=0.5), 
+    axis.title.x=element_blank(), 
+    legend.position = 'none'
+  ) +
+  ylab('training trial count')
+ggsave('images/training_plot2.pdf', width = 10, height = 10)
 
 test.sum %>%
   gather(cue.type, cue.name, -subject, -correct, -trial.count) %>% 
@@ -97,7 +120,7 @@ test.sum %>%
     ) +
     ylab('mean participant accuracy') +
     ggtitle('Test phase')
-ggsave('test_plot1.pdf', width = 10, height = 10, device = cairo_pdf())
+ggsave('images/test_plot1.pdf', width = 10, height = 10)
 
 test %>% 
   group_by(
@@ -122,4 +145,112 @@ test %>%
       ) +
   guides(alpha = F, colour = F) +
   ggtitle("Test: main cue and conversation partner")
-ggsave('test_plot2.pdf', width = 11, height = 10, device = cairo_pdf())
+ggsave('images/test_plot2.pdf', width = 11, height = 10)
+
+
+test.sum = test %>% 
+  group_by(subject, main.cue, conv.partner.seen) %>% 
+  summarise(correct = mean(correct)) %>% 
+  ungroup() %>% 
+  group_by(conv.partner.seen) %>% 
+  mutate(id = row_number())
+
+test.sum %>% 
+  ggplot(aes(x = interaction(conv.partner.seen, main.cue), y = correct)) +
+  geom_violin(aes(fill = conv.partner.seen), alpha = 0.5) +
+  geom_point(aes(colour = conv.partner.seen)) +
+  geom_line(aes(group = interaction(id, main.cue)), alpha = 0.5, colour = 'grey') +
+  stat_summary(aes(group = conv.partner.seen), fun.y=mean, geom="point", shape=16, size=4) +
+  scale_fill_brewer(palette="Set3",
+                    name="Conversation\npartner",
+                    labels=c("Unfamiliar", "Familiar")) +
+  scale_colour_brewer(palette="Set3") +
+  theme(
+    text = element_text(size=30), 
+    axis.text.x = element_text(angle=90, vjust=0.5), 
+    axis.title.x=element_blank(), 
+    # legend.position = 'none'
+  ) +
+  guides(alpha = F, colour = F) +
+  ggtitle("Test: main cue and conversation partner") +
+  scale_x_discrete(labels = rep(levels(test.sum$main.cue), each = 2))
+ggsave('images/test_plot3.pdf', width = 11, height = 10)
+
+test %>% 
+  group_by(subject, r.main.dist, main.cue) %>%
+  summarise(correct = mean(correct)) %>% 
+  ggplot(aes(x = r.main.dist, y = correct, colour = main.cue)) +
+  geom_point(position = position_jitter(width = 0.05))
+# not that visual
+
+##########################################
+# models
+##########################################
+
+# main model
+
+# only diminutives
+
+fit1 = glmer(correct ~ 1 + main.cue + conv.partner.seen + item.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit2 = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit3 = glmer(correct ~ 1 + main.cue * item.seen + conv.partner.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit4 = glmer(correct ~ 1 + main.cue + item.seen + conv.partner.seen * competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit5 = glmer(correct ~ 1 + main.cue + conv.partner.seen + item.seen * competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit6 = glmer(correct ~ 1 + main.cue * item.seen * conv.partner.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+anova(fit1,fit2)
+# Df   AIC   BIC logLik deviance  Chisq Chi Df Pr(>Chisq)   
+# fit1 10 35574 35658 -17777    35554                            
+# fit2 13 35566 35676 -17770    35540 13.462      3   0.003738 **
+anova(fit1,fit3)
+# fit1 10 35574 35658 -17777    35554                         
+# fit3 13 35577 35687 -17775    35551 3.0048      3     0.3909
+anova(fit1,fit4)
+# fit1 10 35574 35658 -17777    35554                         
+# fit4 13 35576 35686 -17775    35550 4.0202      3     0.2593
+anova(fit1,fit5)
+# fit1 10 35574 35658 -17777    35554                         
+# fit5 13 35576 35686 -17775    35550 3.7311      3      0.292
+anova(fit1,fit6)
+# this one's overfit
+
+
+
+## singular fit:
+fit2b = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + ( 1 + main.cue * conv.partner.seen | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+## singular fit:
+fit2c = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + ( 1 + main.cue + conv.partner.seen | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+## confint profiling finds lower deviance: the p = 0.05 is probably not a massive diff
+fit2d = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + ( 1 + main.cue | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+# summary(fit2d)
+anova(fit2,fit2d)
+
+
+save(fit1, file = 'models/fit1.rda');save(fit2, file = 'models/fit2.rda');save(fit3, file = 'models/fit3.rda');save(fit4, file = 'models/fit4.rda');save(fit5, file = 'models/fit5.rda');save(fit2d, file = 'models/fit2d.rda')
+load('fit1.rda');load('fit2.rda');load('fit3.rda');load('fit4.rda');load('fit5.rda');load('fit2d.rda')
+t1 = broom::tidy(fit2)
+
+confints = confint(fit2, method = 'Wald') %>% broom::tidy()
+confints = confints[-1,]
+names(confints) = c('term', '2.5%', '97.5%')
+t1 = inner_join(t1, confints) %>% 
+  dplyr::select(-p.value,-group)
+
+t1 = t1 %>% 
+  mutate(
+    term = str_replace(term, 'main.cue', 'main cue = '),
+    term = str_replace(term, 'competitor.cue', 'competitor cue = '),
+    term = str_replace(term, 'item.seen', 'familiar item'),
+    term = str_replace(term, 'conv.partner.seen', 'familiar conversation partner'),
+    term = str_replace(term, 'TRUE', '')
+  )
+t1 %>% xtable
+
+# secondary models
+
+fit7 = glm(correct ~ 1 + trial.count * main.cue, family = binomial, data = test)
+summary(fit7)
+
+fit8 = glmer(correct ~ 1 + r.main.dist + r.competitor.dist + ( 1 | subject ) + ( 1 | training.partner.pair ), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+fit9 = glmer(correct ~ 1 + r.main.dist * r.competitor.dist + ( 1 | subject ) + ( 1 | training.partner.pair ), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
