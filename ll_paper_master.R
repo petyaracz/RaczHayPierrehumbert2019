@@ -35,7 +35,9 @@ vif.mer <- function (fit) {
 # data frames
 ##########################################
 
-
+alltest = d %>% 
+  filter(phase == 'test', pattern == 'dim')
+  
 d = d %>% filter(kill == F) # slow participants
 
 # training trial counts per participant
@@ -251,6 +253,7 @@ fit2d = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competito
 # summary(fit2d)
 anova(fit2,fit2d)
 
+fit2e = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = alltest, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
 
 save(fit1, file = 'models/fit1.rda');save(fit2, file = 'models/fit2.rda');save(fit3, file = 'models/fit3.rda');save(fit4, file = 'models/fit4.rda');save(fit5, file = 'models/fit5.rda');save(fit2d, file = 'models/fit2d.rda')
 load('fit1.rda');load('fit2.rda');load('fit3.rda');load('fit4.rda');load('fit5.rda');load('fit2d.rda')
