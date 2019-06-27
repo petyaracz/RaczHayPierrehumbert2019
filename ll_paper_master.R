@@ -16,6 +16,21 @@ Sys.setenv(TZ="Europe/Rome") # a szivemben örök tavasz van
 load('paper2data_tidy.rda')
 set.seed(0211)
 
+vif.mer <- function (fit) {
+  ## adapted from rms::vif
+  v <- vcov(fit)
+  nam <- names(fixef(fit))
+  ## exclude intercepts
+  ns <- sum(1 * (nam == "Intercept" | nam == "(Intercept)"))
+  if (ns > 0) {
+    v <- v[-(1:ns), -(1:ns), drop = FALSE]
+    nam <- nam[-(1:ns)] }
+  d <- diag(v)^0.5
+  v <- diag(solve(v/(d %o% d)))
+  names(v) <- nam 
+  v 
+  }
+
 ##########################################
 # data frames
 ##########################################
@@ -212,29 +227,19 @@ test %>%
 
 # only diminutives
 
-fit1 = glmer(correct ~ 1 + main.cue + conv.partner.seen + item.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
-fit2 = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
-fit3 = glmer(correct ~ 1 + main.cue * item.seen + conv.partner.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
-fit4 = glmer(correct ~ 1 + main.cue + item.seen + conv.partner.seen * competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
-fit5 = glmer(correct ~ 1 + main.cue + conv.partner.seen + item.seen * competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
-fit6 = glmer(correct ~ 1 + main.cue * item.seen * conv.partner.seen + competitor.cue + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit1 = glmer(correct ~ 1 + main.cue + conv.partner.seen + item.seen + competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit2 = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit3 = glmer(correct ~ 1 + main.cue * item.seen + conv.partner.seen + competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit4 = glmer(correct ~ 1 + main.cue + item.seen + conv.partner.seen * competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+fit5 = glmer(correct ~ 1 + main.cue + conv.partner.seen + item.seen * competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
 
-anova(fit1,fit2)
-# Df   AIC   BIC logLik deviance  Chisq Chi Df Pr(>Chisq)   
-# fit1 10 35574 35658 -17777    35554                            
-# fit2 13 35566 35676 -17770    35540 13.462      3   0.003738 **
-anova(fit1,fit3)
-# fit1 10 35574 35658 -17777    35554                         
-# fit3 13 35577 35687 -17775    35551 3.0048      3     0.3909
-anova(fit1,fit4)
-# fit1 10 35574 35658 -17777    35554                         
-# fit4 13 35576 35686 -17775    35550 4.0202      3     0.2593
-anova(fit1,fit5)
-# fit1 10 35574 35658 -17777    35554                         
-# fit5 13 35576 35686 -17775    35550 3.7311      3      0.292
-anova(fit1,fit6)
-# this one's overfit
-
+mc1 = anova(fit1,fit2) %>% tidy
+mc2 = anova(fit1,fit3) %>% tidy
+mc3 = anova(fit1,fit4) %>% tidy
+mc4 = anova(fit1,fit5) %>% tidy
+rbind(mc1,mc2,mc3,mc4) %>% 
+  select(-statistic,-Chi.Df,-p.value) %>% 
+  xtable
 
 
 ## singular fit:
@@ -271,6 +276,12 @@ t1 %>% xtable
 
 fit7 = glm(correct ~ 1 + trial.count * main.cue, family = binomial, data = test)
 confint.default(fit7)
+
+fit7b = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+anova(fit2,fit7b)
+vif.mer(fit2)
+vif.mer(fit7b)
 
 fit8 = glmer(correct ~ 1 + r.main.dist + r.competitor.dist + ( 1 | subject ) + ( 1 | training.partner.pair ), family = binomial, data = test, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
 
