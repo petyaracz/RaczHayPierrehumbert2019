@@ -56,6 +56,11 @@ test = d %>%
   inner_join(perc.distance[,c('subject', 'training.partner.pair', 'r.main.dist', 'r.competitor.dist')]) %>% 
   mutate(item.seen = as.factor(item.seen))
 
+test.old.sum = d %>% 
+  filter(phase == 'test', pattern == 'dim', cond %in% c('gender (view)', 'view (gender)'), str_detect(interlocutor, 'adult')) %>% 
+  group_by(subject, cond) %>% 
+  summarise(correct = mean(na.omit(correct)))
+
 # training summary
 
 training.sum = training %>%
@@ -158,6 +163,27 @@ test.sum %>%
     ggtitle('Test phase')
 ggsave('images/test_plot1.pdf', width = 10, height = 10)
 
+test.old.sum %>%
+  mutate(
+    cond2 = ifelse(cond == 'gender (view)', 'Gender', 'View'),
+    cond2 = factor(cond2, levels = c("View", 'Gender'))
+  ) %>% 
+  ggplot(aes(x = cond2, y = correct)) +
+    geom_jitter(aes(colour = cond2), width = 0.3) +
+    geom_violin(aes(fill = cond2, alpha = 0.5)) +
+    stat_summary(fun.y=mean, geom="point", shape=16, size=4) +
+    scale_fill_brewer(palette="Set2") +
+    scale_colour_brewer(palette="Set2") +
+    theme(
+      text = element_text(size=30), 
+      axis.text.x = element_text(angle=90, vjust=0.5), 
+      axis.title.x=element_blank(), 
+      legend.position = 'none'
+      ) +
+    ylab('mean participant accuracy') +
+    ggtitle('Test phase')
+ggsave('images/test_plot1b.pdf', width = 8, height = 10)
+
 test %>% 
   group_by(
     subject, main.cue, conv.partner.seen
@@ -256,7 +282,9 @@ anova(fit2,fit2d)
 fit2e = glmer(correct ~ 1 + main.cue * conv.partner.seen + item.seen + competitor.cue + rescale(trial.count) + ( 1 | subject), family = binomial, data = alltest, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
 
 save(fit1, file = 'models/fit1.rda');save(fit2, file = 'models/fit2.rda');save(fit3, file = 'models/fit3.rda');save(fit4, file = 'models/fit4.rda');save(fit5, file = 'models/fit5.rda');save(fit2d, file = 'models/fit2d.rda')
-load('fit1.rda');load('fit2.rda');load('fit3.rda');load('fit4.rda');load('fit5.rda');load('fit2d.rda')
+
+load('models/fit1.rda');load('models/fit2.rda');load('models/fit3.rda');load('models/fit4.rda');load('models/fit5.rda');load('models/fit2d.rda')
+
 t1 = broom::tidy(fit2)
 
 confints = confint(fit2, method = 'Wald') %>% broom::tidy()
@@ -274,6 +302,20 @@ t1 = t1 %>%
     term = str_replace(term, 'TRUE', '')
   )
 t1 %>% xtable
+
+# confint figure
+
+t1 %>% 
+  filter(term != '(Intercept)') %>% 
+  mutate(
+    row_id = 11:1,
+  ) %>% 
+  ggplot(aes(x = term %>% reorder(row_id), y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(x = term, ymin = `2.5%`, ymax = `97.5%`)) +
+  geom_hline(aes(yintercept = 0), linetype = 'dashed') +
+  coord_flip() +
+  ggtitle('Estimates and 95% confidence intervals in model for test results')
 
 # secondary models
 
