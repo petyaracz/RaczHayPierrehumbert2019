@@ -1,0 +1,24 @@
+subject - subject identifier
+kill - subject is in the slowest 2.5% of sample, measured by training trial count, grouped by main cue
+yearOfBirth
+phase - training (24+ trials) or test (72 trials)
+gender - participant gender
+correct - the outcome variable. did subject pick correct word (this only results in feedback in training)
+promptImage - the prompt image: the item the name of which we need to add a suffix to
+targetImage - the target image: the item the name of which we need to make (like, small x or multiple x-es)
+targetWord1 - first target candidate. prompt name + suffix 1
+targetWord2 - second target candidate. prompt name + suffix 2 (order of candidates randomised in each trial)
+correctAnswer - the correct response
+interlocutor - the interlocutor image
+order - trial id
+timestamp
+training - this column is obsolete
+cond - main cue / competitor cue
+age - participant age
+pattern - type of relationship between prompt and target: diminutive or plural
+item.seen - only relevant in test: is prompt - target item pair familiar from training?
+conv.partner.seen - only relevant in test: is conversation partner familiar from training?
+main.cue - what is the main cue in the experiment
+competitor.cue - what is the competitor cue in the experiment
+group - metamarker
+c.age - participant age, centralised
