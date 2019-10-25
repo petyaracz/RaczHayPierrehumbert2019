@@ -81,7 +81,7 @@ test.old.sum = d %>%
 # training summary
 
 training.sum = training %>%
-  select(main.cue, competitor.cue, subject, trial.count) %>% 
+  dplyr::select(main.cue, competitor.cue, subject, trial.count) %>% 
   gather(cue.type, cue.name, -subject, -trial.count)
 
 # test summary
@@ -98,7 +98,7 @@ dimsum = d %>%
 ##########################################
 
 d %>% 
-  select(subject, main.cue, competitor.cue, pattern) %>% 
+  dplyr::select(subject, main.cue, competitor.cue, pattern) %>% 
   unique %>% 
   count(main.cue, competitor.cue, pattern)
 
@@ -280,7 +280,7 @@ mc2 = anova(fit1,fit3) %>% tidy
 mc3 = anova(fit1,fit4) %>% tidy
 mc4 = anova(fit1,fit5) %>% tidy
 rbind(mc1,mc2,mc3,mc4) %>% 
-  select(-statistic,-Chi.Df,-p.value) %>% 
+  dplyr::select(-statistic,-Chi.Df,-p.value) %>% 
   xtable
 
 # we like fit2 the most.
@@ -384,7 +384,7 @@ anova(fit10b,fit10c)
 # the problem is that sample sizes vary. 
 
 test.people = test %>% 
-  select(subject, group) %>% 
+  dplyr::select(subject, group) %>% 
   unique()
 
 # let's take the smallest sample size
