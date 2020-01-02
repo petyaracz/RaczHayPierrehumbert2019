@@ -336,14 +336,17 @@ t1 %>% xtable
 t1 %>% 
   filter(term != '(Intercept)') %>% 
   mutate(
-    row_id = 11:1,
+    row_id = 12:1,
   ) %>% 
   ggplot(aes(x = term %>% reorder(row_id), y = estimate)) +
   geom_point() +
   geom_errorbar(aes(x = term, ymin = `2.5%`, ymax = `97.5%`)) +
   geom_hline(aes(yintercept = 0), linetype = 'dashed') +
+  xlab('term') +
   coord_flip() +
   ggtitle('Estimates and 95% confidence intervals in model for test results')
+
+
 
 # 6. We add in training trial count.
 
